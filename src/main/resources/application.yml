@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: acme
+
+server:
+  port: 8443
+
+acme:
+  base-url: https://localhost:8443/acme
