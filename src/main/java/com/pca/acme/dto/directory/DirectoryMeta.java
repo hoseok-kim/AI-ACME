@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)    // null 필드는 JSON에 포함 X
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Data
 @Builder
 @NoArgsConstructor
@@ -18,4 +18,4 @@ public class DirectoryMeta {
     private String website;
     private List<String> caaIdentities;
     private boolean externalAccountRequired;
-}
+} 

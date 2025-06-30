@@ -20,6 +20,9 @@ public class DirectoryResponse {
     @JsonProperty("newOrder")
     private String newOrder;
     
+    @JsonProperty("newAuthz")
+    private String newAuthz;
+    
     @JsonProperty("revokeCert")
     private String revokeCert;
     
@@ -27,5 +30,5 @@ public class DirectoryResponse {
     private String keyChange;
     
     @JsonProperty("meta")
-    private DirectoryMeta meta;      // RFC 8555 §7.1.1
-}
+    private DirectoryMeta meta;
+} 
