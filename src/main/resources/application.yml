@@ -4,6 +4,11 @@ spring:
 
 server:
   port: 8443
+  ssl:
+    key-store: classpath:keystore.p12
+    key-store-password: password
+    key-store-type: PKCS12
+    key-alias: tomcat
 
 acme:
   base-url: https://localhost:8443/acme
