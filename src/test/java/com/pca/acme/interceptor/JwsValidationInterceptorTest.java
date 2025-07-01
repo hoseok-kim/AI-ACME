@@ -1,6 +1,7 @@
 package com.pca.acme.interceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pca.acme.service.NonceService;
 import com.pca.acme.util.JwsValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,9 @@ class JwsValidationInterceptorTest {
 
     @Mock
     private JwsValidator jwsValidator;
+    
+    @Mock
+    private NonceService nonceService;
 
     private JwsValidationInterceptor interceptor;
     private MockHttpServletRequest request;
@@ -30,7 +34,7 @@ class JwsValidationInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new JwsValidationInterceptor(jwsValidator, new ObjectMapper());
+        interceptor = new JwsValidationInterceptor(jwsValidator, new ObjectMapper(), nonceService);
         request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
     }
@@ -144,9 +148,15 @@ class JwsValidationInterceptorTest {
         request.setContentType("application/jose+json");
         request.setContent("valid.jws.token".getBytes());
 
-        Map<String, Object> mockHeader = Map.of("alg", "RS256", "kid", "test-key");
+        Map<String, Object> mockHeader = Map.of(
+            "alg", "RS256", 
+            "jwk", Map.of("kty", "RSA", "n", "test", "e", "AQAB"),
+            "nonce", "test-nonce",
+            "url", "https://localhost:8443/acme/new-account"
+        );
         when(jwsValidator.validateJws(anyString()))
                 .thenReturn(JwsValidator.JwsValidationResult.valid(mockHeader, "payload"));
+        when(nonceService.validateAndConsumeNonce("test-nonce")).thenReturn(true);
 
         // When
         boolean result = interceptor.preHandle(request, response, null);
@@ -155,10 +165,92 @@ class JwsValidationInterceptorTest {
         assertTrue(result);
         assertEquals(HttpStatus.OK.value(), response.getStatus());
         verify(jwsValidator).validateJws("valid.jws.token");
+        verify(nonceService).validateAndConsumeNonce("test-nonce");
         
         // 검증된 JWS 정보가 요청 속성에 저장되었는지 확인
         assertEquals(mockHeader, request.getAttribute("jwsHeader"));
         assertEquals("payload", request.getAttribute("jwsPayload"));
+    }
+
+    @Test
+    void shouldFailWhenNewAccountJwsMissingJwkField() throws Exception {
+        // Given
+        request.setRequestURI("/acme/new-account");
+        request.setMethod("POST");
+        request.setContentType("application/jose+json");
+        request.setContent("valid.jws.token".getBytes());
+
+        Map<String, Object> mockHeader = Map.of(
+            "alg", "RS256",
+            "nonce", "test-nonce",
+            "url", "https://localhost:8443/acme/new-account"
+            // jwk 필드 누락
+        );
+        when(jwsValidator.validateJws(anyString()))
+                .thenReturn(JwsValidator.JwsValidationResult.valid(mockHeader, "payload"));
+
+        // When
+        boolean result = interceptor.preHandle(request, response, null);
+
+        // Then
+        assertFalse(result);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
+        assertTrue(response.getContentAsString().contains("malformed"));
+        assertTrue(response.getContentAsString().contains("Missing 'jwk' field"));
+    }
+
+    @Test
+    void shouldFailWhenNewAccountJwsHasUnsupportedAlgorithm() throws Exception {
+        // Given
+        request.setRequestURI("/acme/new-account");
+        request.setMethod("POST");
+        request.setContentType("application/jose+json");
+        request.setContent("valid.jws.token".getBytes());
+
+        Map<String, Object> mockHeader = Map.of(
+            "alg", "HS256", // 지원하지 않는 알고리즘
+            "jwk", Map.of("kty", "RSA", "n", "test", "e", "AQAB"),
+            "nonce", "test-nonce",
+            "url", "https://localhost:8443/acme/new-account"
+        );
+        when(jwsValidator.validateJws(anyString()))
+                .thenReturn(JwsValidator.JwsValidationResult.valid(mockHeader, "payload"));
+
+        // When
+        boolean result = interceptor.preHandle(request, response, null);
+
+        // Then
+        assertFalse(result);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
+        assertTrue(response.getContentAsString().contains("badSignatureAlgorithm"));
+    }
+
+    @Test
+    void shouldFailWhenNewAccountJwsHasInvalidNonce() throws Exception {
+        // Given
+        request.setRequestURI("/acme/new-account");
+        request.setMethod("POST");
+        request.setContentType("application/jose+json");
+        request.setContent("valid.jws.token".getBytes());
+
+        Map<String, Object> mockHeader = Map.of(
+            "alg", "RS256",
+            "jwk", Map.of("kty", "RSA", "n", "test", "e", "AQAB"),
+            "nonce", "invalid-nonce",
+            "url", "https://localhost:8443/acme/new-account"
+        );
+        when(jwsValidator.validateJws(anyString()))
+                .thenReturn(JwsValidator.JwsValidationResult.valid(mockHeader, "payload"));
+        when(nonceService.validateAndConsumeNonce("invalid-nonce")).thenReturn(false);
+
+        // When
+        boolean result = interceptor.preHandle(request, response, null);
+
+        // Then
+        assertFalse(result);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
+        assertTrue(response.getContentAsString().contains("badNonce"));
+        assertTrue(response.getContentAsString().contains("Invalid or expired nonce"));
     }
 
     @Test

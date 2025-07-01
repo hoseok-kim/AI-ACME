@@ -3,6 +3,7 @@ package com.pca.acme.controller;
 import com.pca.acme.dto.directory.DirectoryMeta;
 import com.pca.acme.dto.directory.DirectoryResponse;
 import com.pca.acme.service.DirectoryService;
+import com.pca.acme.service.NonceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,9 @@ class ACMEControllerDirectoryTest {
 
     @Mock
     private DirectoryService directoryService;
+    
+    @Mock
+    private NonceService nonceService;
 
     @InjectMocks
     private ACMEController acmeController;
@@ -41,7 +45,7 @@ class ACMEControllerDirectoryTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(acmeController)
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new GlobalExceptionHandler(nonceService))
                 .defaultResponseCharacterEncoding(StandardCharsets.UTF_8)
                 .alwaysDo(result -> {
                     result.getResponse().setHeader("Access-Control-Allow-Origin", "*");

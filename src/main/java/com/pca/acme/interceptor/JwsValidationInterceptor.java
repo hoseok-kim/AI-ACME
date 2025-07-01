@@ -1,6 +1,7 @@
 package com.pca.acme.interceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pca.acme.service.NonceService;
 import com.pca.acme.util.JwsValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
 
     private final JwsValidator jwsValidator;
     private final ObjectMapper objectMapper;
+    private final NonceService nonceService;
 
     // JWS 검증이 필요 없는 엔드포인트들
     private static final String[] EXCLUDED_PATHS = {
@@ -60,6 +62,13 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
         JwsValidator.JwsValidationResult validationResult = jwsValidator.validateJws(jwsToken);
         if (!validationResult.isValid()) {
             return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "malformed-jws", validationResult.getErrorMessage());
+        }
+
+        // NewAccount API 특화 검증
+        if (requestURI.equals("/acme/new-account")) {
+            if (!validateNewAccountJws(validationResult.getHeader(), response)) {
+                return false;
+            }
         }
 
         // 검증된 JWS 정보를 요청 속성에 저장 (컨트롤러에서 사용 가능)
@@ -119,12 +128,46 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
     }
 
     /**
+     * NewAccount API JWS 헤더 검증
+     */
+    private boolean validateNewAccountJws(Map<String, Object> header, HttpServletResponse response) throws IOException {
+        // 1. jwk 필드 존재 확인
+        if (!header.containsKey("jwk")) {
+            return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "malformed", "Missing 'jwk' field in JWS header for new account");
+        }
+
+        // 2. 알고리즘 검증
+        String algorithm = (String) header.get("alg");
+        if (!"RS256".equals(algorithm) && !"ES256".equals(algorithm)) {
+            return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "badSignatureAlgorithm", "Unsupported signature algorithm: " + algorithm);
+        }
+
+        // 3. nonce 필드 존재 및 유효성 확인
+        String nonce = (String) header.get("nonce");
+        if (nonce == null) {
+            return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "badNonce", "Missing 'nonce' field in JWS header");
+        }
+        
+        if (!nonceService.validateAndConsumeNonce(nonce)) {
+            return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "badNonce", "Invalid or expired nonce");
+        }
+
+        // 4. url 필드 확인
+        String url = (String) header.get("url");
+        if (url == null || !url.endsWith("/acme/new-account")) {
+            return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "malformed", "Invalid or missing 'url' field in JWS header");
+        }
+
+        return true;
+    }
+
+    /**
      * ACME 에러 응답을 전송합니다.
      * RFC 8555 §6.7 Problem Details for HTTP APIs 형식 준수
      */
     private boolean sendErrorResponse(HttpServletResponse response, HttpStatus status, String type, String detail) throws IOException {
         response.setStatus(status.value());
-        response.setContentType("application/problem+json");
+        response.setContentType("application/problem+json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
         
         Map<String, Object> errorResponse = Map.of(

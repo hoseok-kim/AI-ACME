@@ -53,10 +53,10 @@ class ACMEControllerNewAccountTest {
     @Test
     void shouldCreateNewAccountSuccessfully() throws Exception {
         // Given
-        String jwsToken = createValidJwsToken(Map.of(
+        String jwsToken = createValidJwsTokenWithNonceAndKey(Map.of(
             "contact", new String[]{"mailto:admin@example.com"},
             "termsOfServiceAgreed", true
-        ));
+        ), validNonce, "test-key-1");
 
         // When & Then
         MvcResult result = mockMvc.perform(post("/acme/new-account")
@@ -83,10 +83,10 @@ class ACMEControllerNewAccountTest {
     @Test
     void shouldReturnExistingAccountWhenSameKeyUsed() throws Exception {
         // Given - 첫 번째 계정 생성
-        String jwsToken1 = createValidJwsToken(Map.of(
+        String jwsToken1 = createValidJwsTokenWithNonceAndKey(Map.of(
             "contact", new String[]{"mailto:user@example.com"},
             "termsOfServiceAgreed", true
-        ));
+        ), validNonce, "test-key-2");
 
         MvcResult firstResult = mockMvc.perform(post("/acme/new-account")
                 .contentType("application/jose+json")
@@ -98,10 +98,10 @@ class ACMEControllerNewAccountTest {
 
         // 새로운 nonce로 동일한 키를 사용한 두 번째 요청
         String newNonce = nonceService.createNonce();
-        String jwsToken2 = createValidJwsTokenWithNonce(Map.of(
+        String jwsToken2 = createValidJwsTokenWithNonceAndKey(Map.of(
             "contact", new String[]{"mailto:user@example.com"},
             "termsOfServiceAgreed", true
-        ), newNonce);
+        ), newNonce, "test-key-2");
 
         // When & Then - 기존 계정 반환 (200 OK)
         mockMvc.perform(post("/acme/new-account")
@@ -120,9 +120,9 @@ class ACMEControllerNewAccountTest {
     @Test
     void shouldCreateAccountWithoutContact() throws Exception {
         // Given
-        String jwsToken = createValidJwsToken(Map.of(
+        String jwsToken = createValidJwsTokenWithNonceAndKey(Map.of(
             "termsOfServiceAgreed", true
-        ));
+        ), validNonce, "test-key-3");
 
         // When & Then
         mockMvc.perform(post("/acme/new-account")
@@ -140,17 +140,17 @@ class ACMEControllerNewAccountTest {
     @Test
     void shouldRejectAccountCreationWithoutTermsAgreement() throws Exception {
         // Given
-        String jwsToken = createValidJwsToken(Map.of(
+        String jwsToken = createValidJwsTokenWithNonceAndKey(Map.of(
             "contact", new String[]{"mailto:admin@example.com"},
             "termsOfServiceAgreed", false
-        ));
+        ), validNonce, "test-key-4");
 
         // When & Then
         mockMvc.perform(post("/acme/new-account")
                 .contentType("application/jose+json")
                 .content(jwsToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
                 .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:userActionRequired"))
                 .andExpect(jsonPath("$.detail").value("Terms of service agreement is required"));
     }
@@ -161,17 +161,17 @@ class ACMEControllerNewAccountTest {
     @Test
     void shouldRejectInvalidContactFormat() throws Exception {
         // Given
-        String jwsToken = createValidJwsToken(Map.of(
+        String jwsToken = createValidJwsTokenWithNonceAndKey(Map.of(
             "contact", new String[]{"invalid-contact-format"},
             "termsOfServiceAgreed", true
-        ));
+        ), validNonce, "test-key-5");
 
         // When & Then
         mockMvc.perform(post("/acme/new-account")
                 .contentType("application/jose+json")
                 .content(jwsToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
                 .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:invalidContact"))
                 .andExpect(jsonPath("$.detail").value(containsString("Invalid contact")));
     }
@@ -182,14 +182,14 @@ class ACMEControllerNewAccountTest {
     @Test
     void shouldRejectEmptyPayload() throws Exception {
         // Given
-        String jwsToken = createValidJwsToken(Map.of());
+        String jwsToken = createValidJwsTokenWithNonceAndKey(Map.of(), validNonce, "test-key-6");
 
         // When & Then
         mockMvc.perform(post("/acme/new-account")
                 .contentType("application/jose+json")
                 .content(jwsToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
                 .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:malformed"))
                 .andExpect(jsonPath("$.detail").value(containsString("termsOfServiceAgreed")));
     }
@@ -210,7 +210,7 @@ class ACMEControllerNewAccountTest {
                 .contentType("application/jose+json")
                 .content(jwsToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
                 .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:malformed"))
                 .andExpect(jsonPath("$.detail").value(containsString("jwk")));
     }
@@ -231,7 +231,7 @@ class ACMEControllerNewAccountTest {
                 .contentType("application/jose+json")
                 .content(jwsToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
                 .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:badNonce"));
     }
 
@@ -251,7 +251,7 @@ class ACMEControllerNewAccountTest {
                 .contentType("application/jose+json")
                 .content(jwsToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
                 .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:badSignatureAlgorithm"));
     }
 
@@ -267,11 +267,11 @@ class ACMEControllerNewAccountTest {
             "signature", "TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
         );
 
-        String jwsToken = createValidJwsToken(Map.of(
+        String jwsToken = createValidJwsTokenWithNonceAndKey(Map.of(
             "contact", new String[]{"mailto:admin@example.com"},
             "termsOfServiceAgreed", true,
             "externalAccountBinding", externalAccountBinding
-        ));
+        ), validNonce, "test-key-7");
 
         // When & Then
         mockMvc.perform(post("/acme/new-account")
@@ -289,11 +289,15 @@ class ACMEControllerNewAccountTest {
     }
 
     private String createValidJwsTokenWithNonce(Map<String, Object> payload, String nonce) {
+        return createValidJwsTokenWithNonceAndKey(payload, nonce, "default-key");
+    }
+
+    private String createValidJwsTokenWithNonceAndKey(Map<String, Object> payload, String nonce, String keyId) {
         try {
-            // Mock JWK (공개키)
+            // Mock JWK (공개키) - keyId에 따라 다른 키 생성
             Map<String, Object> jwk = Map.of(
                 "kty", "RSA",
-                "n", "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
+                "n", "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw" + keyId,
                 "e", "AQAB"
             );
 
@@ -311,7 +315,7 @@ class ACMEControllerNewAccountTest {
                 .encodeToString(objectMapper.writeValueAsString(payload).getBytes());
             String signature = "mock-signature"; // 테스트용 모의 서명
 
-            // Flattened JSON Serialization
+            // Flattened JSON Serialization (ACME 표준)
             Map<String, Object> jws = Map.of(
                 "protected", protectedB64,
                 "payload", payloadB64,

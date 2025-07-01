@@ -35,7 +35,7 @@ class ACMEControllerNewNonceTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(acmeController)
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new GlobalExceptionHandler(nonceService))
                 .defaultResponseCharacterEncoding(StandardCharsets.UTF_8)
                 .alwaysDo(result -> {
                     result.getResponse().setHeader("Access-Control-Allow-Origin", "*");
