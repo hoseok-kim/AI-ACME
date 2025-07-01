@@ -1,16 +1,19 @@
 package com.pca.acme.util;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-
 import java.util.Base64;
 import java.util.Map;
+
+import org.springframework.stereotype.Component;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * JWS (JSON Web Signature) 검증을 위한 유틸리티 클래스
  * RFC 7515 JSON Web Signature (JWS) 구현
  */
+
 @Slf4j
 @Component
 public class JwsValidator {
@@ -24,7 +27,7 @@ public class JwsValidator {
     /**
      * JWS 토큰을 파싱하고 검증합니다.
      * Compact Serialization (header.payload.signature) 및 Flattened JSON Serialization 지원
-     * 
+     *
      * @param jwsToken JWS 토큰 문자열
      * @return JwsValidationResult 검증 결과
      */
@@ -70,7 +73,7 @@ public class JwsValidator {
      */
     private JwsValidationResult validateFlattenedJws(String jwsToken) throws Exception {
         Map<String, Object> jwsObject = objectMapper.readValue(jwsToken, Map.class);
-        
+
         if (!jwsObject.containsKey("protected") || !jwsObject.containsKey("payload") || !jwsObject.containsKey("signature")) {
             return JwsValidationResult.invalid("Invalid Flattened JWS format: missing required fields");
         }
@@ -145,4 +148,4 @@ public class JwsValidator {
             return payload;
         }
     }
-} 
+}

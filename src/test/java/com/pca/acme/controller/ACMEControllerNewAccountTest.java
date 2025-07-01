@@ -1,7 +1,17 @@
 package com.pca.acme.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pca.acme.service.NonceService;
+import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.Base64;
+import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,13 +22,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.util.Base64;
-import java.util.Map;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.hamcrest.Matchers.containsString;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pca.acme.service.NonceService;
 
 /**
  * ACME NewAccount API 테스트
@@ -287,6 +292,7 @@ class ACMEControllerNewAccountTest {
         return createValidJwsTokenWithNonce(payload, validNonce);
     }
 
+
     private String createValidJwsTokenWithNonce(Map<String, Object> payload, String nonce) {
         return createValidJwsTokenWithNonceAndKey(payload, nonce, "default-key");
     }
@@ -384,4 +390,4 @@ class ACMEControllerNewAccountTest {
             throw new RuntimeException("Failed to create JWS token with algorithm", e);
         }
     }
-} 
+}

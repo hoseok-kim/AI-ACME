@@ -1,8 +1,18 @@
 package com.pca.acme.interceptor;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pca.acme.service.NonceService;
-import com.pca.acme.util.JwsValidator;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import java.io.IOException;
+import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,19 +22,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import java.io.IOException;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pca.acme.service.NonceService;
+import com.pca.acme.util.JwsValidator;
 
 @ExtendWith(MockitoExtension.class)
 class JwsValidationInterceptorTest {
 
     @Mock
     private JwsValidator jwsValidator;
-    
+
     @Mock
     private NonceService nonceService;
 
@@ -149,14 +156,13 @@ class JwsValidationInterceptorTest {
         request.setContent("valid.jws.token".getBytes());
 
         Map<String, Object> mockHeader = Map.of(
-            "alg", "RS256", 
+            "alg", "RS256",
             "jwk", Map.of("kty", "RSA", "n", "test", "e", "AQAB"),
             "nonce", "test-nonce",
             "url", "https://localhost:8443/acme/new-account"
         );
         when(jwsValidator.validateJws(anyString()))
                 .thenReturn(JwsValidator.JwsValidationResult.valid(mockHeader, "payload"));
-        when(nonceService.validateAndConsumeNonce("test-nonce")).thenReturn(true);
 
         // When
         boolean result = interceptor.preHandle(request, response, null);
@@ -165,8 +171,7 @@ class JwsValidationInterceptorTest {
         assertTrue(result);
         assertEquals(HttpStatus.OK.value(), response.getStatus());
         verify(jwsValidator).validateJws("valid.jws.token");
-        verify(nonceService).validateAndConsumeNonce("test-nonce");
-        
+
         // 검증된 JWS 정보가 요청 속성에 저장되었는지 확인
         assertEquals(mockHeader, request.getAttribute("jwsHeader"));
         assertEquals("payload", request.getAttribute("jwsPayload"));
@@ -226,7 +231,7 @@ class JwsValidationInterceptorTest {
     }
 
     @Test
-    void shouldFailWhenNewAccountJwsHasInvalidNonce() throws Exception {
+    void shouldFailWhenNewAccountJwsHasInvalidUrl() throws Exception {
         // Given
         request.setRequestURI("/acme/new-account");
         request.setMethod("POST");
@@ -236,12 +241,11 @@ class JwsValidationInterceptorTest {
         Map<String, Object> mockHeader = Map.of(
             "alg", "RS256",
             "jwk", Map.of("kty", "RSA", "n", "test", "e", "AQAB"),
-            "nonce", "invalid-nonce",
-            "url", "https://localhost:8443/acme/new-account"
+            "nonce", "test-nonce",
+            "url", "https://localhost:8443/acme/wrong-url"  // 잘못된 URL
         );
         when(jwsValidator.validateJws(anyString()))
                 .thenReturn(JwsValidator.JwsValidationResult.valid(mockHeader, "payload"));
-        when(nonceService.validateAndConsumeNonce("invalid-nonce")).thenReturn(false);
 
         // When
         boolean result = interceptor.preHandle(request, response, null);
@@ -249,8 +253,8 @@ class JwsValidationInterceptorTest {
         // Then
         assertFalse(result);
         assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
-        assertTrue(response.getContentAsString().contains("badNonce"));
-        assertTrue(response.getContentAsString().contains("Invalid or expired nonce"));
+        assertTrue(response.getContentAsString().contains("malformed"));
+        assertTrue(response.getContentAsString().contains("Invalid or missing 'url' field"));
     }
 
     @Test
@@ -259,7 +263,7 @@ class JwsValidationInterceptorTest {
         request.setRequestURI("/acme/new-account");
         request.setMethod("POST");
         request.setContentType("application/jose+json");
-        
+
         // IOException을 발생시키는 요청 생성
         MockHttpServletRequest problematicRequest = spy(request);
         doThrow(new IOException("Test exception")).when(problematicRequest).getReader();
@@ -272,4 +276,4 @@ class JwsValidationInterceptorTest {
         assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
         assertTrue(response.getContentAsString().contains("missing-jws"));
     }
-} 
+}

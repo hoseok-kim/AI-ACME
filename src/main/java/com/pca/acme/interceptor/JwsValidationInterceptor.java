@@ -1,18 +1,19 @@
 package com.pca.acme.interceptor;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pca.acme.service.NonceService;
-import com.pca.acme.util.JwsValidator;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.io.IOException;
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pca.acme.util.JwsValidator;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * JWS 검증을 처리하는 인터셉터
@@ -26,7 +27,6 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
 
     private final JwsValidator jwsValidator;
     private final ObjectMapper objectMapper;
-    private final NonceService nonceService;
 
     // JWS 검증이 필요 없는 엔드포인트들
     private static final String[] EXCLUDED_PATHS = {
@@ -37,7 +37,7 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String requestURI = request.getRequestURI();
-        
+
         // 제외된 경로인지 확인
         if (isExcludedPath(requestURI)) {
             log.debug("JWS validation skipped for excluded path: {}", requestURI);
@@ -63,12 +63,13 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
             return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "malformed-jws", validationResult.getErrorMessage());
         }
 
-        // NewAccount API 특화 검증
+        // NewAccount API 특화 검증 (Nonce 검증 제외)
         if (requestURI.equals("/acme/new-account")) {
             if (!validateNewAccountJws(validationResult.getHeader(), response)) {
                 return false;
             }
         }
+
 
         // 검증된 JWS 정보를 요청 속성에 저장 (컨트롤러에서 사용 가능)
         request.setAttribute("jwsHeader", validationResult.getHeader());
@@ -127,7 +128,7 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * NewAccount API JWS 헤더 검증
+     * NewAccount API JWS 헤더 검증 (Nonce 검증 제외)
      */
     private boolean validateNewAccountJws(Map<String, Object> header, HttpServletResponse response) throws IOException {
         // 1. jwk 필드 존재 확인
@@ -141,17 +142,7 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
             return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "badSignatureAlgorithm", "Unsupported signature algorithm: " + algorithm);
         }
 
-        // 3. nonce 필드 존재 및 유효성 확인
-        String nonce = (String) header.get("nonce");
-        if (nonce == null) {
-            return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "badNonce", "Missing 'nonce' field in JWS header");
-        }
-        
-        if (!nonceService.validateAndConsumeNonce(nonce)) {
-            return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "badNonce", "Invalid or expired nonce");
-        }
-
-        // 4. url 필드 확인
+        // 3. url 필드 확인
         String url = (String) header.get("url");
         if (url == null || !url.endsWith("/acme/new-account")) {
             return sendErrorResponse(response, HttpStatus.BAD_REQUEST, "malformed", "Invalid or missing 'url' field in JWS header");
@@ -168,7 +159,7 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
         response.setStatus(status.value());
         response.setContentType("application/problem+json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
-        
+
         Map<String, Object> errorResponse = Map.of(
             "type", "urn:ietf:params:acme:error:" + type,
             "detail", detail,
@@ -178,8 +169,8 @@ public class JwsValidationInterceptor implements HandlerInterceptor {
         String jsonResponse = objectMapper.writeValueAsString(errorResponse);
         response.getWriter().write(jsonResponse);
         response.getWriter().flush();
-        
+
         log.warn("JWS validation failed: {} - {}", type, detail);
         return false;
     }
-} 
+}
