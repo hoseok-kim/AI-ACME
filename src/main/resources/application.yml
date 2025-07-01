@@ -12,3 +12,6 @@ server:
 
 acme:
   base-url: https://localhost:8443/acme
+  nonce:
+    max-age: 300        # Nonce 최대 유효 시간 (초) - 기본 5분
+    max-count: 1000     # 최대 저장할 Nonce 개수 - 기본 1000개
