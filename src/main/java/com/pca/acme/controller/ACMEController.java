@@ -16,7 +16,6 @@ import com.pca.acme.service.DirectoryService;
 import com.pca.acme.service.NonceService;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Base64;
 import java.util.Map;
 
 @RestController
