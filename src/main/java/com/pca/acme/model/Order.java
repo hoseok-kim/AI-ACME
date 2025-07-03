@@ -35,19 +35,9 @@ public class Order {
     private OrderStatus status;
 
     /**
-     * 주문 생성 시간
+     * 주문 만료 시간 (선택사항)
      */
-    private Instant createdAt;
-
-    /**
-     * 주문 만료 시간
-     */
-    private Instant expiresAt;
-
-    /**
-     * 마지막 업데이트 시간
-     */
-    private Instant updatedAt;
+    private Instant expires;
 
     /**
      * 인증서에 포함될 식별자 목록
@@ -55,19 +45,39 @@ public class Order {
     private List<Identifier> identifiers;
 
     /**
+     * 요청된 인증서 유효 시작 시간 (선택사항)
+     */
+    private Instant notBefore;
+
+    /**
+     * 요청된 인증서 유효 종료 시간 (선택사항)
+     */
+    private Instant notAfter;
+
+    /**
      * 인증 URL 목록
      */
     private List<String> authorizations;
 
     /**
-     * 최종 요청 URL
+     * CSR을 전송해야 하는 최종 요청 URL
      */
-    private String finalizeUrl;
+    private String finalize;
 
     /**
      * 발급된 인증서 URL (상태가 valid일 때만)
      */
-    private String certificateUrl;
+    private String certificate;
+
+    /**
+     * 주문 생성 시간
+     */
+    private Instant createdAt;
+
+    /**
+     * 마지막 업데이트 시간
+     */
+    private Instant updatedAt;
 
     /**
      * 주문 상태 열거형
@@ -88,24 +98,5 @@ public class Order {
         public String getValue() {
             return value;
         }
-    }
-
-    /**
-     * 식별자 정보를 담는 내부 클래스
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Identifier {
-        /**
-         * 식별자 타입 (예: "dns")
-         */
-        private String type;
-
-        /**
-         * 식별자 값 (예: "example.com")
-         */
-        private String value;
     }
 }

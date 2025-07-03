@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 
 import com.pca.acme.dto.order.OrderRequest;
 import com.pca.acme.dto.order.OrderResponse;
+import com.pca.acme.model.Authorization;
+import com.pca.acme.model.Identifier;
 import com.pca.acme.model.Order;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 public class OrderService {
 
     private final Map<String, Order> orders = new ConcurrentHashMap<>();
+    private final AuthorizationService authorizationService;
 
     @Value("${acme.base-url:https://localhost:8443/acme}")
     private String baseUrl;
@@ -61,16 +64,17 @@ public class OrderService {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(orderExpirationHours * 3600L);
 
-        List<Order.Identifier> identifiers = request.getIdentifiers().stream()
-            .map(id -> Order.Identifier.builder()
+        List<Identifier> identifiers = request.getIdentifiers().stream()
+            .map(id -> Identifier.builder()
                 .type(id.getType())
                 .value(id.getValue())
                 .build())
             .collect(Collectors.toList());
 
-        // 인증 URL 생성
-        List<String> authorizations = identifiers.stream()
-            .map(id -> baseUrl + "/authz/" + generateAuthzId())
+        // 인증 생성 및 URL 생성
+        List<Authorization> authorizationList = authorizationService.createAuthorizations(identifiers);
+        List<String> authorizations = authorizationList.stream()
+            .map(auth -> authorizationService.getAuthorizationUrl(auth.getAuthorizationId()))
             .collect(Collectors.toList());
 
         Order order = Order.builder()
@@ -78,11 +82,11 @@ public class OrderService {
             .accountId(accountId)
             .status(Order.OrderStatus.PENDING)
             .createdAt(now)
-            .expiresAt(expiresAt)
+            .expires(expiresAt)
             .updatedAt(now)
             .identifiers(identifiers)
             .authorizations(authorizations)
-            .finalizeUrl(baseUrl + "/order/" + orderId + "/finalize")
+            .finalize(baseUrl + "/order/" + orderId + "/finalize")
             .build();
 
         orders.put(orderId, order);
@@ -111,11 +115,11 @@ public class OrderService {
 
         return OrderResponse.builder()
             .status(order.getStatus().getValue())
-            .expires(order.getExpiresAt())
+            .expires(order.getExpires())
             .identifiers(identifiers)
             .authorizations(order.getAuthorizations())
-            .finalize(order.getFinalizeUrl())
-            .certificate(order.getCertificateUrl())
+            .finalize(order.getFinalize())
+            .certificate(order.getCertificate())
             .build();
     }
 
@@ -197,12 +201,7 @@ public class OrderService {
         return UUID.randomUUID().toString().replace("-", "");
     }
 
-    /**
-     * 인증 ID를 생성합니다.
-     */
-    private String generateAuthzId() {
-        return UUID.randomUUID().toString().replace("-", "");
-    }
+
 
     /**
      * 주문 URL을 생성합니다.

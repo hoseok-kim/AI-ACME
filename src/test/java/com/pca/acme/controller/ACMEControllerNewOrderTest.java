@@ -1,5 +1,6 @@
 package com.pca.acme.controller;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -137,13 +138,122 @@ class ACMEControllerNewOrderTest {
                 .andExpect(jsonPath("$.identifiers[0].value").value("example.com"))
                 .andExpect(jsonPath("$.authorizations").isArray())
                 .andExpect(jsonPath("$.authorizations").isNotEmpty())
-                .andExpect(jsonPath("$.finalize").exists());
+                .andExpect(jsonPath("$.finalize").exists())
+                .andExpect(jsonPath("$.certificate").doesNotExist());
+    }
+
+    @Test
+    void shouldCreateOrderWithMultipleIdentifiers() throws Exception {
+        String kidUrl = createTestAccount("124");
+        Map<String, Object> payload = Map.of(
+            "identifiers", List.of(
+                Map.of("type", "dns", "value", "example.com"),
+                Map.of("type", "dns", "value", "www.example.com"),
+                Map.of("type", "dns", "value", "api.example.com")
+            )
+        );
+        String jwsToken = createValidJwsToken(kidUrl, payload);
+
+        mockMvc.perform(post("/acme/new-order")
+                .contentType("application/jose+json")
+                .content(jwsToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("pending"))
+                .andExpect(jsonPath("$.identifiers").isArray())
+                .andExpect(jsonPath("$.identifiers").value(hasSize(3)))
+                .andExpect(jsonPath("$.authorizations").isArray())
+                .andExpect(jsonPath("$.authorizations").value(hasSize(3)));
+    }
+
+    @Test
+    void shouldCreateOrderWithWildcardDomain() throws Exception {
+        String kidUrl = createTestAccount("125");
+        Map<String, Object> payload = Map.of(
+            "identifiers", List.of(
+                Map.of("type", "dns", "value", "*.example.com")
+            )
+        );
+        String jwsToken = createValidJwsToken(kidUrl, payload);
+
+        mockMvc.perform(post("/acme/new-order")
+                .contentType("application/jose+json")
+                .content(jwsToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("pending"))
+                .andExpect(jsonPath("$.identifiers[0].value").value("*.example.com"));
     }
 
     @Test
     void shouldFailWhenIdentifiersAreMissing() throws Exception {
-        String kidUrl = createTestAccount("124");
+        String kidUrl = createTestAccount("126");
         Map<String, Object> payload = Map.of();
+        String jwsToken = createValidJwsToken(kidUrl, payload);
+
+        mockMvc.perform(post("/acme/new-order")
+                .contentType("application/jose+json")
+                .content(jwsToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:malformed"));
+    }
+
+    @Test
+    void shouldFailWhenIdentifiersArrayIsEmpty() throws Exception {
+        String kidUrl = createTestAccount("127");
+        Map<String, Object> payload = Map.of(
+            "identifiers", List.of()
+        );
+        String jwsToken = createValidJwsToken(kidUrl, payload);
+
+        mockMvc.perform(post("/acme/new-order")
+                .contentType("application/jose+json")
+                .content(jwsToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:malformed"));
+    }
+
+    @Test
+    void shouldFailWhenIdentifierTypeIsUnsupported() throws Exception {
+        String kidUrl = createTestAccount("128");
+        Map<String, Object> payload = Map.of(
+            "identifiers", List.of(
+                Map.of("type", "ip", "value", "192.168.1.1")
+            )
+        );
+        String jwsToken = createValidJwsToken(kidUrl, payload);
+
+        mockMvc.perform(post("/acme/new-order")
+                .contentType("application/jose+json")
+                .content(jwsToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:unsupportedIdentifier"));
+    }
+
+    @Test
+    void shouldFailWhenDomainNameIsInvalid() throws Exception {
+        String kidUrl = createTestAccount("129");
+        Map<String, Object> payload = Map.of(
+            "identifiers", List.of(
+                Map.of("type", "dns", "value", "invalid..domain")
+            )
+        );
+        String jwsToken = createValidJwsToken(kidUrl, payload);
+
+        mockMvc.perform(post("/acme/new-order")
+                .contentType("application/jose+json")
+                .content(jwsToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:malformed"));
+    }
+
+    @Test
+    void shouldFailWhenDuplicateIdentifiersProvided() throws Exception {
+        String kidUrl = createTestAccount("130");
+        Map<String, Object> payload = Map.of(
+            "identifiers", List.of(
+                Map.of("type", "dns", "value", "example.com"),
+                Map.of("type", "dns", "value", "example.com")
+            )
+        );
         String jwsToken = createValidJwsToken(kidUrl, payload);
 
         mockMvc.perform(post("/acme/new-order")
@@ -168,5 +278,22 @@ class ACMEControllerNewOrderTest {
                 .content(jwsToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:accountDoesNotExist"));
+    }
+
+    @Test
+    void shouldFailWhenIdentifierFieldsMissing() throws Exception {
+        String kidUrl = createTestAccount("131");
+        Map<String, Object> payload = Map.of(
+            "identifiers", List.of(
+                Map.of("type", "dns")  // missing value
+            )
+        );
+        String jwsToken = createValidJwsToken(kidUrl, payload);
+
+        mockMvc.perform(post("/acme/new-order")
+                .contentType("application/jose+json")
+                .content(jwsToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:ietf:params:acme:error:malformed"));
     }
 }
