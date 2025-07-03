@@ -48,7 +48,9 @@ public class AuthorizationService {
      * 단일 식별자에 대한 인증을 생성합니다.
      */
     public Authorization createAuthorization(Identifier identifier) {
+        log.info("Creating authorization with baseUrl: {}, expirationHours: {}", baseUrl, authorizationExpirationHours);
         String authorizationId = generateAuthorizationId();
+        log.info("Generated authorizationId: {}", authorizationId);
         Instant now = Instant.now();
         Instant expires = now.plusSeconds(authorizationExpirationHours * 3600L);
 

@@ -55,9 +55,11 @@ public class OrderService {
      */
     public Order createOrder(String accountId, OrderRequest request) {
         log.info("Creating new order for account: {}", accountId);
+        log.info("Request identifiers: {}", request.getIdentifiers());
 
         // 요청 검증
         validateOrderRequest(request);
+        log.info("Order request validation passed");
 
         // 주문 생성
         String orderId = generateOrderId();
@@ -72,10 +74,17 @@ public class OrderService {
             .collect(Collectors.toList());
 
         // 인증 생성 및 URL 생성
+        log.info("Creating authorizations for {} identifiers", identifiers.size());
         List<Authorization> authorizationList = authorizationService.createAuthorizations(identifiers);
+        log.info("Created {} authorizations", authorizationList.size());
+
         List<String> authorizations = authorizationList.stream()
-            .map(auth -> authorizationService.getAuthorizationUrl(auth.getAuthorizationId()))
+            .map(auth -> {
+                log.info("Processing authorization: {}", auth.getAuthorizationId());
+                return authorizationService.getAuthorizationUrl(auth.getAuthorizationId());
+            })
             .collect(Collectors.toList());
+        log.info("Generated {} authorization URLs", authorizations.size());
 
         Order order = Order.builder()
             .orderId(orderId)

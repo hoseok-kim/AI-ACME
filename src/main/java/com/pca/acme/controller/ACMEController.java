@@ -182,8 +182,8 @@ public class ACMEController {
      * kid URL에서 계정 ID를 추출합니다.
      */
     private String extractAccountIdFromKidUrl(String kidUrl) {
-        // kidUrl 형식: https://localhost:8443/acme/account/{accountId}
-        if (kidUrl != null && kidUrl.contains("/acme/account/")) {
+        // kidUrl 형식: https://localhost:8443/acme/acme/acct/{accountId}
+        if (kidUrl != null && kidUrl.contains("/acme/acct/")) {
             return kidUrl.substring(kidUrl.lastIndexOf("/") + 1);
         }
         return null;
