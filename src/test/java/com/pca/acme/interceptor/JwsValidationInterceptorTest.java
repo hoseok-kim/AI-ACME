@@ -41,7 +41,7 @@ class JwsValidationInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new JwsValidationInterceptor(jwsValidator, new ObjectMapper(), nonceService);
+        interceptor = new JwsValidationInterceptor(jwsValidator, new ObjectMapper());
         request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
     }
